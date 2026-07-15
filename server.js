@@ -189,8 +189,9 @@ const outfitStorage = multer.diskStorage({
     cb(null, OUTFITS_DIR);
   },
   filename: (req, file, cb) => {
-    const uniqueId = 'outfit_' + Date.now();
-    cb(null, `${uniqueId}.png`);
+    const ext = path.extname(file.originalname) || '.png';
+    const tempId = 'temp_' + Date.now();
+    cb(null, `${tempId}${ext}`);
   }
 });
 
@@ -784,6 +785,47 @@ app.post('/api/projects/:id/frames/:index/restore', (req, res) => {
   }
 });
 
+// Helper: Run Python script with command fallbacks (python -> py -> python3)
+function runPythonScript(scriptPath, args) {
+  return new Promise((resolve, reject) => {
+    let output = '';
+    let errorLog = '';
+    
+    const trySpawn = (cmd) => {
+      const proc = spawn(cmd, [scriptPath, ...args]);
+      
+      proc.stdout.on('data', (data) => output += data.toString());
+      proc.stderr.on('data', (data) => errorLog += data.toString());
+      
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve(output);
+        } else {
+          reject(new Error(`Command '${cmd}' closed with code ${code}. Stderr: ${errorLog.trim() || 'None'}. Stdout: ${output.trim() || 'None'}`));
+        }
+      });
+      
+      proc.on('error', (err) => {
+        if (err.code === 'ENOENT') {
+          if (cmd === 'python') {
+            console.warn("Command 'python' not found, falling back to 'py'...");
+            trySpawn('py');
+          } else if (cmd === 'py') {
+            console.warn("Command 'py' not found, falling back to 'python3'...");
+            trySpawn('python3');
+          } else {
+            reject(new Error(`Could not locate python, py, or python3 in system PATH.`));
+          }
+        } else {
+          reject(err);
+        }
+      });
+    };
+    
+    trySpawn('python');
+  });
+}
+
 // Helper: Check if video has audio stream using ffprobe
 function checkHasAudio(videoPath) {
   return new Promise((resolve) => {
@@ -1050,26 +1092,45 @@ app.get('/api/outfits', (req, res) => {
 });
 
 // POST Upload outfit to catalogue
-app.post('/api/outfits', uploadOutfit.single('outfit'), (req, res) => {
+app.post('/api/outfits', uploadOutfit.single('outfit'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No outfit file uploaded' });
     }
-    const id = path.basename(req.file.filename, '.png');
     const name = req.body.name || 'Unnamed Outfit';
+    const finalId = 'outfit_' + Date.now();
+    const finalFileName = `${finalId}.png`;
+    const finalPath = path.join(OUTFITS_DIR, finalFileName);
 
-    const catalogue = readCatalogue();
-    const newOutfit = {
-      id,
-      name,
-      fileName: req.file.filename,
-      createdAt: new Date().toISOString()
-    };
+    const pythonScript = path.join(__dirname, 'scripts', 'convert_to_png.py');
+    try {
+      await runPythonScript(pythonScript, [req.file.path, finalPath]);
 
-    catalogue.push(newOutfit);
-    writeCatalogue(catalogue);
+      // Cleanup temp uploaded file
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
 
-    res.json(newOutfit);
+      const catalogue = readCatalogue();
+      const newOutfit = {
+        id: finalId,
+        name,
+        fileName: finalFileName,
+        createdAt: new Date().toISOString()
+      };
+
+      catalogue.push(newOutfit);
+      writeCatalogue(catalogue);
+
+      res.json(newOutfit);
+    } catch (err) {
+      // Cleanup temp file on conversion failure
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      console.error('Image format conversion failed:', err.message);
+      res.status(500).json({ error: `Image conversion to PNG failed: ${err.message}` });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1101,7 +1162,7 @@ app.delete('/api/outfits/:id', (req, res) => {
 });
 
 // POST Remove background from outfit image
-app.post('/api/outfits/:id/remove-bg', (req, res) => {
+app.post('/api/outfits/:id/remove-bg', async (req, res) => {
   try {
     const { id } = req.params;
     const catalogue = readCatalogue();
@@ -1113,29 +1174,19 @@ app.post('/api/outfits/:id/remove-bg', (req, res) => {
 
     const inputPath = path.join(OUTFITS_DIR, outfit.fileName);
     const tempOutPath = path.join(OUTFITS_DIR, `${id}_nobg.png`);
-
     const pythonScript = path.join(__dirname, 'scripts', 'remove_bg.py');
-    const pythonProcess = spawn('python', [pythonScript, inputPath, tempOutPath]);
 
-    let stderr = '';
-    pythonProcess.stderr.on('data', (data) => stderr += data.toString());
-
-    pythonProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`Python remove-bg failed with code ${code}. Stderr: ${stderr}`);
-        return res.status(500).json({ error: `Background removal failed: ${stderr || 'Unknown error'}` });
+    try {
+      await runPythonScript(pythonScript, [inputPath, tempOutPath]);
+      if (fs.existsSync(tempOutPath)) {
+        fs.copyFileSync(tempOutPath, inputPath);
+        fs.unlinkSync(tempOutPath);
       }
-
-      try {
-        if (fs.existsSync(tempOutPath)) {
-          fs.copyFileSync(tempOutPath, inputPath);
-          fs.unlinkSync(tempOutPath);
-        }
-        res.json({ success: true, message: 'Background removed successfully' });
-      } catch (e) {
-        res.status(500).json({ error: e.message });
-      }
-    });
+      res.json({ success: true, message: 'Background removed successfully' });
+    } catch (err) {
+      console.error(`Background removal failed: ${err.message}`);
+      res.status(500).json({ error: `Background removal failed: ${err.message}` });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
