@@ -1,0 +1,306 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "🔷 UNET (Flux2 Klein 9B)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "🔷 CLIP (Qwen 3 8B)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "🔷 VAE (Flux2)"
+    }
+  },
+  "21": {
+    "inputs": {
+      "pixels": [
+        "27",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "🔒 Encode Ref"
+    }
+  },
+  "22": {
+    "inputs": {
+      "text": "Wearikng a short dress",
+      "clip": [
+        "264",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "✏️ Edit Prompt"
+    }
+  },
+  "24": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "264",
+        0
+      ],
+      "positive": [
+        "28",
+        0
+      ],
+      "negative": [
+        "29",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "🎯 CFG"
+    }
+  },
+  "25": {
+    "inputs": {
+      "noise": [
+        "31",
+        0
+      ],
+      "guider": [
+        "24",
+        0
+      ],
+      "sampler": [
+        "30",
+        0
+      ],
+      "sigmas": [
+        "393",
+        0
+      ],
+      "latent_image": [
+        "201",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "⚡ Sampler Adv"
+    }
+  },
+  "26": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "samples": [
+        "25",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "🖼️ Decode"
+    }
+  },
+  "27": {
+    "inputs": {
+      "upscale_method": "bilinear",
+      "scale_by": 1,
+      "image": [
+        "394",
+        0
+      ]
+    },
+    "class_type": "ImageScaleBy",
+    "_meta": {
+      "title": "🔍 Resize"
+    }
+  },
+  "28": {
+    "inputs": {
+      "conditioning": [
+        "22",
+        0
+      ],
+      "latent": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "🧬 Ref Latent"
+    }
+  },
+  "29": {
+    "inputs": {
+      "conditioning": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "⭕ Zero Neg"
+    }
+  },
+  "30": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "🎲 Sampler"
+    }
+  },
+  "31": {
+    "inputs": {
+      "noise_seed": 1122879734307696
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "🎰 Noise"
+    }
+  },
+  "32": {
+    "inputs": {
+      "filename_prefix": "2\\frame",
+      "images": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "💾 Save"
+    }
+  },
+  "201": {
+    "inputs": {
+      "width": [
+        "207",
+        0
+      ],
+      "height": [
+        "207",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "📐 Empty Latent"
+    }
+  },
+  "207": {
+    "inputs": {
+      "image": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "264": {
+    "inputs": {
+      "lora_name": "KLEIN-Unchained-V2.safetensors",
+      "strength_model": 0.7,
+      "strength_clip": 0.7,
+      "model": [
+        "1",
+        0
+      ],
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "🔗 LoRA"
+    }
+  },
+  "279": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b-Q5_K_M.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "322": {
+    "inputs": {
+      "Blend Mode": "normal",
+      "compare_controls": null,
+      "image_a": [
+        "26",
+        0
+      ],
+      "image_b": [
+        "394",
+        0
+      ]
+    },
+    "class_type": "EsesImageCompare",
+    "_meta": {
+      "title": "Eses Image Compare"
+    }
+  },
+  "393": {
+    "inputs": {
+      "steps": 1,
+      "width": 16,
+      "height": 16
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "⏱️ Flux2Sched"
+    }
+  },
+  "394": {
+    "inputs": {
+      "path_or_urls": "C:\\Users\\ovh\\Downloads\\f3",
+      "upscale_method": "lanczos",
+      "megapixels": 0,
+      "scale_by": 1,
+      "resize_mode": "longest_side",
+      "size": 0,
+      "batch_size": 0,
+      "start_from": 1,
+      "sort_method": "sequential"
+    },
+    "class_type": "AILab_LoadImageBatch",
+    "_meta": {
+      "title": "Image frames Directory"
+    }
+  }
+}
