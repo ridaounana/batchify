@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Film, AlertTriangle, Cpu } from 'lucide-react';
+import { Settings as SettingsIcon, Film, AlertTriangle, Cpu, Shirt } from 'lucide-react';
 import ProjectList from './components/ProjectList.jsx';
 import ProjectDetails from './components/ProjectDetails.jsx';
 import Settings from './components/Settings.jsx';
+import OutfitCatalogue from './components/OutfitCatalogue.jsx';
 
 export default function App() {
   const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCatalogue, setShowCatalogue] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -87,8 +89,28 @@ export default function App() {
         </div>
 
         <div className="flex align-center gap-15">
+          {/* Main Tab Navigation */}
+          <div className="tab-navigation flex gap-5 glass-panel p-5" style={{ borderRadius: 'var(--radius-sm)', background: 'rgba(255, 255, 255, 0.02)' }}>
+            <button
+              onClick={() => { setShowSettings(false); setShowCatalogue(false); }}
+              className={`btn flex align-center gap-5 btn-xs px-10 py-5 ${(!showSettings && !showCatalogue) ? 'btn-primary' : 'btn-text text-muted'}`}
+              style={{ borderRadius: 'var(--radius-xs)', fontSize: '12px', border: 'none' }}
+            >
+              <Film size={12} />
+              Projects
+            </button>
+            <button
+              onClick={() => { setShowSettings(false); setShowCatalogue(true); }}
+              className={`btn flex align-center gap-5 btn-xs px-10 py-5 ${(showCatalogue && !showSettings) ? 'btn-primary' : 'btn-text text-muted'}`}
+              style={{ borderRadius: 'var(--radius-xs)', fontSize: '12px', border: 'none' }}
+            >
+              <Shirt size={12} />
+              Wardrobe Catalogue
+            </button>
+          </div>
+
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => { setShowSettings(!showSettings); }}
             className={`btn-settings flex align-center gap-5 btn-secondary-outline ${showSettings ? 'active' : ''}`}
           >
             <SettingsIcon size={16} />
@@ -98,17 +120,21 @@ export default function App() {
       </header>
 
       <main className="app-main flex-grow flex gap-20 p-20 overflow-hidden">
-        <ProjectList
-          projects={projects}
-          activeProject={activeProject}
-          onSelectProject={setActiveProject}
-          onCreateProject={handleCreateProject}
-          onDeleteProject={handleDeleteProject}
-        />
+        {!showCatalogue && !showSettings && (
+          <ProjectList
+            projects={projects}
+            activeProject={activeProject}
+            onSelectProject={setActiveProject}
+            onCreateProject={handleCreateProject}
+            onDeleteProject={handleDeleteProject}
+          />
+        )}
 
         <div className="main-content-panel flex-grow overflow-hidden flex-column">
           {showSettings ? (
             <Settings onClose={() => setShowSettings(false)} />
+          ) : showCatalogue ? (
+            <OutfitCatalogue />
           ) : activeProject ? (
             <ProjectDetails
               project={activeProject}

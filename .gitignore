@@ -11,6 +11,7 @@ dist/
 
 # Projects runtime directory (contains heavy frames and input/output videos)
 projects/
+outfits/
 
 # Local configuration files
 config.json

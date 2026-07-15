@@ -19,6 +19,15 @@ export default function ProjectDetails({ project, onUpdateProject }) {
   const [seedMode, setSeedMode] = useState('fixed');
   const [noiseSeed, setNoiseSeed] = useState('1122879734307696');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [outfits, setOutfits] = useState([]);
+  const [selectedOutfitId, setSelectedOutfitId] = useState('');
+
+  useEffect(() => {
+    fetch('/api/outfits')
+      .then(res => res.json())
+      .then(data => setOutfits(data || []))
+      .catch(err => console.error('Error fetching outfits for selector:', err));
+  }, []);
   const [progressData, setProgressData] = useState({
     status: project.status,
     extractedCount: project.extractedCount,
@@ -145,7 +154,8 @@ export default function ProjectDetails({ project, onUpdateProject }) {
         schedulerSteps,
         loraStrength,
         seedMode,
-        noiseSeed
+        noiseSeed,
+        outfitId: selectedOutfitId || null
       })
     })
       .then(res => {
@@ -298,6 +308,26 @@ export default function ProjectDetails({ project, onUpdateProject }) {
                     onChange={(e) => setSchedulerSteps(parseInt(e.target.value, 10))}
                     className="glass-input width-100"
                   />
+                </div>
+              </div>
+
+              {/* Outfit Catalogue Selector */}
+              <div className="flex gap-15 mt-10">
+                <div className="form-group mb-5 flex-grow">
+                  <label className="text-muted font-semibold">Outfit Reference (Catalogue):</label>
+                  <select
+                    value={selectedOutfitId}
+                    onChange={(e) => setSelectedOutfitId(e.target.value)}
+                    className="speed-select-box width-100"
+                    style={{ height: '36px', padding: '0 10px', background: 'rgba(0, 0, 0, 0.25)', color: 'var(--text-main)', border: '1px solid var(--border-glass)' }}
+                  >
+                    <option value="">No Outfit / Default Workflow (1 Image)</option>
+                    {outfits.map(outfit => (
+                      <option key={outfit.id} value={outfit.id}>
+                        👕 {outfit.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

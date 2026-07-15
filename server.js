@@ -25,6 +25,29 @@ if (!fs.existsSync(PROJECTS_DIR)) {
   fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 }
 
+const OUTFITS_DIR = path.resolve(__dirname, 'outfits');
+const OUTFITS_JSON = path.join(OUTFITS_DIR, 'catalogue.json');
+
+// Ensure Outfits Directory exists
+if (!fs.existsSync(OUTFITS_DIR)) {
+  fs.mkdirSync(OUTFITS_DIR, { recursive: true });
+}
+if (!fs.existsSync(OUTFITS_JSON)) {
+  fs.writeFileSync(OUTFITS_JSON, JSON.stringify([], null, 2), 'utf8');
+}
+
+function readCatalogue() {
+  try {
+    return JSON.parse(fs.readFileSync(OUTFITS_JSON, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeCatalogue(data) {
+  fs.writeFileSync(OUTFITS_JSON, JSON.stringify(data, null, 2), 'utf8');
+}
+
 // Default configuration
 const DEFAULT_CONFIG = {
   comfyUrl: 'http://127.0.0.1:8188',
@@ -158,6 +181,22 @@ const upload = multer({
       cb(new Error('Only video files are allowed'));
     }
   }
+});
+
+// Multer storage configuration for Outfit catalogue
+const outfitStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, OUTFITS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueId = 'outfit_' + Date.now();
+    cb(null, `${uniqueId}.png`);
+  }
+});
+
+const uploadOutfit = multer({
+  storage: outfitStorage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
 // GET Settings
@@ -352,6 +391,8 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
     const loraStrength = req.body.loraStrength !== undefined ? parseFloat(req.body.loraStrength) : null;
     const seedMode = req.body.seedMode || 'fixed';
     const noiseSeed = req.body.noiseSeed !== undefined && req.body.noiseSeed !== '' ? parseInt(req.body.noiseSeed, 10) : 1122879734307696;
+    const outfitId = req.body.outfitId || null;
+
     const projectPath = validateProjectPath(id);
     const infoPath = path.join(projectPath, 'info.json');
 
@@ -362,50 +403,80 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
     const info = readProjectInfo(id);
     const config = readConfig();
 
-    const workflowPath = 'C:\\Users\\ovh\\Documents\\AI\\batchify\\Batchify.json';
-    if (!fs.existsSync(workflowPath)) {
-      return res.status(500).json({ error: 'Workflow API file Batchify.json not found at expected path.' });
+    let workflowFilename = 'Batchify.json';
+    let isOutfitWorkflow = false;
+    let selectedOutfit = null;
+
+    if (outfitId) {
+      const catalogue = readCatalogue();
+      selectedOutfit = catalogue.find(o => o.id === outfitId);
+      if (selectedOutfit) {
+        workflowFilename = 'Batchify-V1.json';
+        isOutfitWorkflow = true;
+
+        // Copy outfit file to ComfyUI input folder
+        const comfyInputDir = config.comfyOutputDir.replace(/output\/?$/, 'input');
+        if (!fs.existsSync(comfyInputDir)) {
+          fs.mkdirSync(comfyInputDir, { recursive: true });
+        }
+        const srcOutfitPath = path.join(OUTFITS_DIR, selectedOutfit.fileName);
+        const destOutfitPath = path.join(comfyInputDir, selectedOutfit.fileName);
+        fs.copyFileSync(srcOutfitPath, destOutfitPath);
+      }
     }
 
-    let workflow = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+    const workflowPath = path.join(__dirname, workflowFilename);
+    const finalWorkflowPath = fs.existsSync(workflowPath) ? workflowPath : `C:\\Users\\ovh\\Documents\\AI\\batchify\\${workflowFilename}`;
+
+    if (!fs.existsSync(finalWorkflowPath)) {
+      return res.status(500).json({ error: `Workflow API file ${workflowFilename} not found.` });
+    }
+
+    let workflow = JSON.parse(fs.readFileSync(finalWorkflowPath, 'utf8'));
+
+    // Dynamic Node Mapping based on workflow version
+    const promptNodeId = isOutfitWorkflow ? '48' : '22';
+    const schedulerNodeId = isOutfitWorkflow ? '50' : '393';
+    const noiseNodeId = isOutfitWorkflow ? '53' : '31';
+    const loraNodeId = '264';
+    const batchLoaderNodeId = '394';
+    const saveImageNodeId = isOutfitWorkflow ? '56' : '32';
+
+    // Inject outfit image if using outfit workflow
+    if (isOutfitWorkflow && selectedOutfit) {
+      if (workflow['43'] && workflow['43'].inputs) {
+        workflow['43'].inputs.image = selectedOutfit.fileName;
+      }
+    }
 
     // Inject custom prompt query text if provided
     if (promptText && typeof promptText === 'string') {
-      if (workflow['22'] && workflow['22'].inputs) {
-        workflow['22'].inputs.text = promptText;
+      if (workflow[promptNodeId] && workflow[promptNodeId].inputs) {
+        workflow[promptNodeId].inputs.text = promptText;
       }
     }
 
     // Inject custom scheduler steps if provided
     if (schedulerSteps && schedulerSteps > 0) {
-      let foundSched = false;
-      for (const nodeId in workflow) {
-        const node = workflow[nodeId];
-        if (node.class_type === 'Flux2Scheduler' || (node._meta && node._meta.title === '⏱️ Flux2Sched')) {
-          node.inputs.steps = schedulerSteps;
-          foundSched = true;
-          break;
-        }
-      }
-      if (!foundSched && workflow['393'] && workflow['393'].inputs) {
-        workflow['393'].inputs.steps = schedulerSteps;
+      if (workflow[schedulerNodeId] && workflow[schedulerNodeId].inputs) {
+        workflow[schedulerNodeId].inputs.steps = schedulerSteps;
       }
     }
 
     // Inject custom LoRA strength if provided
     if (loraStrength !== null && !isNaN(loraStrength)) {
-      if (workflow['264'] && workflow['264'].inputs) {
-        workflow['264'].inputs.strength_model = loraStrength;
-        workflow['264'].inputs.strength_clip = loraStrength;
+      if (workflow[loraNodeId] && workflow[loraNodeId].inputs) {
+        workflow[loraNodeId].inputs.strength_model = loraStrength;
+        workflow[loraNodeId].inputs.strength_clip = loraStrength;
       }
     }
 
     // Inject initial seed in case of batch size = 0
-    if (workflow['31'] && workflow['31'].inputs) {
+    if (workflow[noiseNodeId] && workflow[noiseNodeId].inputs) {
       if (seedMode === 'random') {
-        workflow['31'].inputs.noise_seed = Math.floor(Math.random() * 1000000000000000);
+        workflow[noiseNodeId].inputs.noise_seed = Math.floor(Math.random() * 1000000000000000);
       } else {
-        workflow['31'].inputs.noise_seed = noiseSeed;
+        workflow[noiseNodeId].inputs.noise_seed = noiseSeed;
       }
     }
 
@@ -443,10 +514,10 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
 
     if (batchSize === 0) {
       // Original behavior: Queue all at once
-      workflow['394'].inputs.path_or_urls = path.join(projectPath, 'extracted_frames');
-      workflow['394'].inputs.start_from = 1;
-      workflow['394'].inputs.batch_size = 0;
-      workflow['32'].inputs.filename_prefix = `batchify\\project_${id}\\frame`;
+      workflow[batchLoaderNodeId].inputs.path_or_urls = path.join(projectPath, 'extracted_frames');
+      workflow[batchLoaderNodeId].inputs.start_from = 1;
+      workflow[batchLoaderNodeId].inputs.batch_size = 0;
+      workflow[saveImageNodeId].inputs.filename_prefix = `batchify\\project_${id}\\frame`;
 
       const response = await fetch(`${config.comfyUrl}/prompt`, {
         method: 'POST',
@@ -463,8 +534,6 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
       lastPromptId = resJson.prompt_id;
     } else {
       // Chunked Queueing: Queue in loops to ComfyUI's queue
-      // Group contiguous runs of pending frames where possible, or just queue frame by frame
-      // Queueing frame by frame is extremely safe and easy. Let's do it in groups.
       for (let i = 0; i < pendingFrames.length; i += batchSize) {
         const chunk = pendingFrames.slice(i, i + batchSize);
         const startFrame = chunk[0];
@@ -474,20 +543,20 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
         const clonedWorkflow = JSON.parse(JSON.stringify(workflow));
 
         // Inject directories, start frame, and chunk size
-        clonedWorkflow['394'].inputs.path_or_urls = path.join(projectPath, 'extracted_frames');
-        clonedWorkflow['394'].inputs.start_from = startFrame;
-        clonedWorkflow['394'].inputs.batch_size = size;
+        clonedWorkflow[batchLoaderNodeId].inputs.path_or_urls = path.join(projectPath, 'extracted_frames');
+        clonedWorkflow[batchLoaderNodeId].inputs.start_from = startFrame;
+        clonedWorkflow[batchLoaderNodeId].inputs.batch_size = size;
 
         // Save with padded frame index prefix so backend resolves frame number from prefix + index
         const zeroPadded = String(startFrame).padStart(4, '0');
-        clonedWorkflow['32'].inputs.filename_prefix = `batchify\\project_${id}\\frame_${zeroPadded}`;
+        clonedWorkflow[saveImageNodeId].inputs.filename_prefix = `batchify\\project_${id}\\frame_${zeroPadded}`;
 
         // Inject seed mode inside each chunk
-        if (clonedWorkflow['31'] && clonedWorkflow['31'].inputs) {
+        if (clonedWorkflow[noiseNodeId] && clonedWorkflow[noiseNodeId].inputs) {
           if (seedMode === 'random') {
-            clonedWorkflow['31'].inputs.noise_seed = Math.floor(Math.random() * 1000000000000000);
+            clonedWorkflow[noiseNodeId].inputs.noise_seed = Math.floor(Math.random() * 1000000000000000);
           } else {
-            clonedWorkflow['31'].inputs.noise_seed = noiseSeed;
+            clonedWorkflow[noiseNodeId].inputs.noise_seed = noiseSeed;
           }
         }
 
@@ -970,6 +1039,110 @@ app.get('/api/projects/:id/frames/edited/:name', (req, res) => {
     res.status(500).send(err.message);
   }
 });
+
+// GET list of outfits
+app.get('/api/outfits', (req, res) => {
+  try {
+    res.json(readCatalogue());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Upload outfit to catalogue
+app.post('/api/outfits', uploadOutfit.single('outfit'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No outfit file uploaded' });
+    }
+    const id = path.basename(req.file.filename, '.png');
+    const name = req.body.name || 'Unnamed Outfit';
+
+    const catalogue = readCatalogue();
+    const newOutfit = {
+      id,
+      name,
+      fileName: req.file.filename,
+      createdAt: new Date().toISOString()
+    };
+
+    catalogue.push(newOutfit);
+    writeCatalogue(catalogue);
+
+    res.json(newOutfit);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE Outfit from catalogue
+app.delete('/api/outfits/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const catalogue = readCatalogue();
+    const outfit = catalogue.find(o => o.id === id);
+
+    if (!outfit) {
+      return res.status(404).json({ error: 'Outfit not found' });
+    }
+
+    const filePath = path.join(OUTFITS_DIR, outfit.fileName);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    const updated = catalogue.filter(o => o.id !== id);
+    writeCatalogue(updated);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Remove background from outfit image
+app.post('/api/outfits/:id/remove-bg', (req, res) => {
+  try {
+    const { id } = req.params;
+    const catalogue = readCatalogue();
+    const outfit = catalogue.find(o => o.id === id);
+
+    if (!outfit) {
+      return res.status(404).json({ error: 'Outfit not found' });
+    }
+
+    const inputPath = path.join(OUTFITS_DIR, outfit.fileName);
+    const tempOutPath = path.join(OUTFITS_DIR, `${id}_nobg.png`);
+
+    const pythonScript = path.join(__dirname, 'scripts', 'remove_bg.py');
+    const pythonProcess = spawn('python', [pythonScript, inputPath, tempOutPath]);
+
+    let stderr = '';
+    pythonProcess.stderr.on('data', (data) => stderr += data.toString());
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Python remove-bg failed with code ${code}. Stderr: ${stderr}`);
+        return res.status(500).json({ error: `Background removal failed: ${stderr || 'Unknown error'}` });
+      }
+
+      try {
+        if (fs.existsSync(tempOutPath)) {
+          fs.copyFileSync(tempOutPath, inputPath);
+          fs.unlinkSync(tempOutPath);
+        }
+        res.json({ success: true, message: 'Background removed successfully' });
+      } catch (e) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Serve Outfits catalogue folder statically
+app.use('/outfits', express.static(OUTFITS_DIR));
 
 // Serve frontend in production mode
 const distPath = path.join(__dirname, 'dist');
