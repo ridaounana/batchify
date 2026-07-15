@@ -3,7 +3,7 @@ import os
 
 def check_dependencies():
     try:
-        from rembg import remove
+        from rembg import remove, new_session
         from PIL import Image
     except ImportError:
         print("Required dependencies not found. Auto-installing 'rembg[cpu]' and 'pillow'...")
@@ -17,7 +17,7 @@ def check_dependencies():
 
 def main():
     check_dependencies()
-    from rembg import remove
+    from rembg import remove, new_session
     from PIL import Image
 
     if len(sys.argv) < 3:
@@ -34,7 +34,11 @@ def main():
     try:
         print(f"Removing background from: {input_path}")
         input_image = Image.open(input_path)
-        output_image = remove(input_image)
+        
+        # Load u2net_cloth_seg optimized for clothes/wardrobe parsing
+        session = new_session("u2net_cloth_seg")
+        output_image = remove(input_image, session=session)
+        
         output_image.save(output_path, "PNG")
         print("Background removal completed successfully.")
     except Exception as e:
