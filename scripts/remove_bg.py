@@ -35,8 +35,8 @@ def main():
         print(f"Removing background from: {input_path}")
         input_image = Image.open(input_path)
         
-        # Load u2net_cloth_seg optimized for clothes/wardrobe parsing
-        session = new_session("u2net_cloth_seg")
+        # Load birefnet-general (SOTA salient object detection model)
+        session = new_session("birefnet-general")
         output_image = remove(input_image, session=session)
         
         output_image.save(output_path, "PNG")
