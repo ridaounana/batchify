@@ -6,10 +6,10 @@ def check_dependencies():
         from rembg import remove
         from PIL import Image
     except ImportError:
-        print("Required dependencies not found. Auto-installing 'rembg' and 'pillow'...")
+        print("Required dependencies not found. Auto-installing 'rembg[cpu]' and 'pillow'...")
         import subprocess
         try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "rembg", "pillow"], check=True)
+            subprocess.run([sys.executable, "-m", "pip", "install", "rembg[cpu]", "pillow"], check=True)
             print("Dependencies installed successfully.")
         except Exception as e:
             print(f"Failed to auto-install dependencies: {e}")
