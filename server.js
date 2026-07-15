@@ -451,9 +451,18 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
     }
 
     // Inject custom prompt query text if provided
-    if (promptText && typeof promptText === 'string') {
+    let finalPromptText = promptText;
+    if (isOutfitWorkflow && selectedOutfit) {
+      if (!finalPromptText) {
+        finalPromptText = `Wearing ${selectedOutfit.name}`;
+      } else if (!finalPromptText.toLowerCase().includes('wearing')) {
+        finalPromptText = `${finalPromptText}, Wearing ${selectedOutfit.name}`;
+      }
+    }
+
+    if (finalPromptText && typeof finalPromptText === 'string') {
       if (workflow[promptNodeId] && workflow[promptNodeId].inputs) {
-        workflow[promptNodeId].inputs.text = promptText;
+        workflow[promptNodeId].inputs.text = finalPromptText;
       }
     }
 

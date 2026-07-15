@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Scissors, Zap, Film, RefreshCw, Layers, CheckCircle, AlertCircle, Play, Eye } from 'lucide-react';
+import { Upload, Scissors, Zap, Film, RefreshCw, Layers, CheckCircle, AlertCircle, Play, Eye, Shirt, Sparkles } from 'lucide-react';
 import FrameEditor from './FrameEditor.jsx';
 import VideoPlayer from './VideoPlayer.jsx';
 
@@ -21,6 +21,7 @@ export default function ProjectDetails({ project, onUpdateProject }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [outfits, setOutfits] = useState([]);
   const [selectedOutfitId, setSelectedOutfitId] = useState('');
+  const [showOutfitDrawer, setShowOutfitDrawer] = useState(false);
 
   useEffect(() => {
     fetch('/api/outfits')
@@ -311,25 +312,106 @@ export default function ProjectDetails({ project, onUpdateProject }) {
                 </div>
               </div>
 
-              {/* Outfit Catalogue Selector */}
-              <div className="flex gap-15 mt-10">
-                <div className="form-group mb-5 flex-grow">
-                  <label className="text-muted font-semibold">Outfit Reference (Catalogue):</label>
-                  <select
-                    value={selectedOutfitId}
-                    onChange={(e) => setSelectedOutfitId(e.target.value)}
-                    className="speed-select-box width-100"
-                    style={{ height: '36px', padding: '0 10px', background: 'rgba(0, 0, 0, 0.25)', color: 'var(--text-main)', border: '1px solid var(--border-glass)' }}
-                  >
-                    <option value="">No Outfit / Default Workflow (1 Image)</option>
-                    {outfits.map(outfit => (
-                      <option key={outfit.id} value={outfit.id}>
-                        👕 {outfit.name}
-                      </option>
-                    ))}
-                  </select>
+              {/* Call-to-Action for V1 Multi-Ref Outfit Workflow */}
+              {!selectedOutfitId ? (
+                <div 
+                  className="glass-panel p-15 mt-15 flex justify-between align-center hover-scale" 
+                  style={{ 
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(20, 20, 25, 0.3) 100%)', 
+                    cursor: 'pointer',
+                    border: '1px solid var(--border-glass)'
+                  }} 
+                  onClick={() => setShowOutfitDrawer(!showOutfitDrawer)}
+                >
+                  <div className="flex align-center gap-15">
+                    <div className="p-10 rounded-full" style={{ background: 'rgba(99, 102, 241, 0.1)' }}>
+                      <Shirt className="text-primary" size={20} />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm m-0" style={{ color: 'var(--text-main)' }}>Add AI Outfit Fitting? (V1 Multi-Ref Model)</h5>
+                      <p className="text-xs text-muted m-0">Apply a transparent wardrobe outfit on top of your video frames.</p>
+                    </div>
+                  </div>
+                  <button className="btn btn-xs btn-primary-outline" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Sparkles size={12} />
+                    Choose Outfit
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <div 
+                  className="glass-panel p-15 mt-15 flex justify-between align-center" 
+                  style={{ 
+                    border: '1px solid rgba(16, 185, 129, 0.3)', 
+                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(20, 20, 25, 0.3) 100%)' 
+                  }}
+                >
+                  <div className="flex align-center gap-15">
+                    <div className="p-10 rounded-full" style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
+                      <Shirt className="text-success" size={20} />
+                    </div>
+                    <div>
+                      <h5 className="font-semibold text-sm m-0" style={{ color: 'var(--color-success)' }}>AI Outfit Fitting Active</h5>
+                      <p className="text-xs text-muted m-0">Dressing frames in: <strong className="text-white">{outfits.find(o => o.id === selectedOutfitId)?.name}</strong></p>
+                    </div>
+                  </div>
+                  <button 
+                    className="btn btn-xs btn-secondary-outline" 
+                    style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+                    onClick={() => { 
+                      setSelectedOutfitId(''); 
+                      // Reset prompt text to remove the proposed wearing text if they cancel it
+                      const cleanPrompt = promptText.replace(/,?\s*Wearing\s+[^,]+/gi, '').trim();
+                      setPromptText(cleanPrompt);
+                    }}
+                  >
+                    Remove Outfit
+                  </button>
+                </div>
+              )}
+
+              {/* Horizontal Wardrobe Selection Drawer */}
+              {showOutfitDrawer && !selectedOutfitId && (
+                <div className="glass-panel p-15 mt-10 animated-slide-down flex-column gap-10" style={{ background: 'rgba(255, 255, 255, 0.01)' }}>
+                  <div className="flex justify-between align-center">
+                    <span className="text-xs font-semibold text-muted">Select reference graphic from your Wardrobe:</span>
+                    <button className="btn-text btn-xs text-muted" onClick={() => setShowOutfitDrawer(false)}>Close Drawer</button>
+                  </div>
+                  {outfits.length === 0 ? (
+                    <div className="text-center py-15 text-muted text-xs">
+                      No outfits in wardrobe. Go to <strong>Wardrobe Catalogue</strong> to upload clothing references first.
+                    </div>
+                  ) : (
+                    <div className="flex gap-10 overflow-x-auto py-5 scrollbar-thin" style={{ whiteSpace: 'nowrap' }}>
+                      {outfits.map(outfit => (
+                        <div 
+                          key={outfit.id} 
+                          className="glass-panel p-5 cursor-pointer hover-scale flex-column align-center text-center select-none"
+                          style={{ width: '100px', flexShrink: 0, border: '1px solid var(--border-glass)', background: 'rgba(255, 255, 255, 0.01)' }}
+                          onClick={() => {
+                            setSelectedOutfitId(outfit.id);
+                            setShowOutfitDrawer(false);
+                            // Propose suffix: check if it already has the wearing text
+                            let basePrompt = promptText.trim();
+                            basePrompt = basePrompt.replace(/,?\s*Wearing\s+[^,]+/gi, '');
+                            if (basePrompt) {
+                              setPromptText(`${basePrompt}, Wearing ${outfit.name}`);
+                            } else {
+                              setPromptText(`Wearing ${outfit.name}`);
+                            }
+                          }}
+                        >
+                          <img 
+                            src={`/outfits/${outfit.fileName}`} 
+                            alt={outfit.name} 
+                            style={{ width: '80px', height: '80px', objectFit: 'contain', background: '#0a0a0c', borderRadius: 'var(--radius-sm)' }}
+                          />
+                          <span className="text-xxs font-semibold truncate display-block mt-5 width-100" style={{ fontSize: '10px' }}>{outfit.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Advanced Sampler Consistency Controls */}
               <div className="mt-10 pt-10" style={{ borderTop: '1px solid var(--border-glass)' }}>
