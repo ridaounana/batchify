@@ -437,7 +437,7 @@ app.post('/api/projects/:id/trigger-comfy', async (req, res) => {
 
     // Dynamic Node Mapping based on workflow version
     const promptNodeId = isOutfitWorkflow ? '48' : '22';
-    const schedulerNodeId = isOutfitWorkflow ? '50' : '393';
+    const schedulerNodeId = '393';
     const noiseNodeId = isOutfitWorkflow ? '53' : '31';
     const loraNodeId = '264';
     const batchLoaderNodeId = '394';

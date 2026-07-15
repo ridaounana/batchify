@@ -61,31 +61,17 @@
   },
   "43": {
     "inputs": {
-      "image": "OIP.webp"
+      "image": "cq5dam.web.hebebed.1000.1000.avif"
     },
     "class_type": "LoadImage",
     "_meta": {
       "title": "📂 Pose Ref (DAZ 3D render)"
     }
   },
-  "44": {
-    "inputs": {
-      "upscale_method": "bilinear",
-      "scale_by": 1,
-      "image": [
-        "43",
-        0
-      ]
-    },
-    "class_type": "ImageScaleBy",
-    "_meta": {
-      "title": "🔍 Resize Pose"
-    }
-  },
   "45": {
     "inputs": {
       "pixels": [
-        "44",
+        "43",
         0
       ],
       "vae": [
@@ -269,11 +255,11 @@
   "202": {
     "inputs": {
       "width": [
-        "209",
+        "395",
         0
       ],
       "height": [
-        "209",
+        "395",
         1
       ],
       "batch_size": 1
@@ -281,18 +267,6 @@
     "class_type": "EmptyLatentImage",
     "_meta": {
       "title": "📐 Empty Latent"
-    }
-  },
-  "209": {
-    "inputs": {
-      "image": [
-        "44",
-        0
-      ]
-    },
-    "class_type": "GetImageSize",
-    "_meta": {
-      "title": "Get Image Size"
     }
   },
   "264": {
@@ -363,6 +337,18 @@
     "class_type": "AILab_LoadImageBatch",
     "_meta": {
       "title": "Image frames Directory"
+    }
+  },
+  "395": {
+    "inputs": {
+      "image": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
     }
   }
 }
