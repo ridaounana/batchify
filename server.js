@@ -1000,7 +1000,8 @@ app.post('/api/projects/:id/compile', async (req, res) => {
         const fileHasAudioStream = await checkHasAudio(originalVideo);
 
         if (includeAudio && fileHasAudioStream) {
-          // Merge audio from original video
+          // Merge audio from original video matching the exact compiled video duration
+          const duration = info.extractedCount / compileFps;
           const mergeArgs = [
             '-i', tempOutputVideo,
             '-i', originalVideo,
@@ -1008,7 +1009,7 @@ app.post('/api/projects/:id/compile', async (req, res) => {
             '-c:a', 'aac',
             '-map', '0:v:0',
             '-map', '1:a:0',
-            '-shortest',
+            '-t', String(duration),
             '-y',
             finalOutputVideo
           ];
