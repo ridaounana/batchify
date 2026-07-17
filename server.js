@@ -847,6 +847,24 @@ function runPythonScript(scriptPath, args) {
   });
 }
 
+// Helper: Build chained atempo filter string to support any audio speed scaling (range 0.5 - 2.0 per filter)
+function getATempoFilter(speed) {
+  let s = speed;
+  const filters = [];
+  while (s < 0.5) {
+    filters.push('atempo=0.5');
+    s = s / 0.5;
+  }
+  while (s > 2.0) {
+    filters.push('atempo=2.0');
+    s = s / 2.0;
+  }
+  if (s !== 1.0) {
+    filters.push(`atempo=${s.toFixed(4)}`);
+  }
+  return filters.join(',');
+}
+
 // Helper: Check if video has audio stream using ffprobe
 function checkHasAudio(videoPath) {
   return new Promise((resolve) => {
@@ -1000,20 +1018,30 @@ app.post('/api/projects/:id/compile', async (req, res) => {
         const fileHasAudioStream = await checkHasAudio(originalVideo);
 
         if (includeAudio && fileHasAudioStream) {
-          // Merge audio from original video matching the exact compiled video duration
           const duration = info.extractedCount / compileFps;
+          
+          // Calculate audio speed change factor based on compile vs extraction FPS
+          const speed = compileFps / (info.fps || 16);
+          const atempoFilter = getATempoFilter(speed);
+
           const mergeArgs = [
             '-i', tempOutputVideo,
-            '-stream_loop', '-1',
             '-i', originalVideo,
             '-c:v', 'copy',
-            '-c:a', 'aac',
+            '-c:a', 'aac'
+          ];
+
+          if (atempoFilter) {
+            mergeArgs.push('-filter:a', atempoFilter);
+          }
+
+          mergeArgs.push(
             '-map', '0:v:0',
             '-map', '1:a:0',
             '-t', String(duration),
             '-y',
             finalOutputVideo
-          ];
+          );
 
           const mergeProcess = spawn('ffmpeg', mergeArgs);
           let mergeErrorLog = '';
