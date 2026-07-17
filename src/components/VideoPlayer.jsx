@@ -9,8 +9,9 @@ export default function VideoPlayer({ project }) {
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [loop, setLoop] = useState(true);
-  const [compareMode, setCompareMode] = useState(false); // Side-by-side vs Single
+  const [compareMode, setCompareMode] = useState(false); // Split slider vs Single
   const [videoSource, setVideoSource] = useState('output'); // 'output' (edited) or 'input' (original)
+  const [sliderPos, setSliderPos] = useState(50);
 
   const mainVideoRef = useRef(null);
   const secondaryVideoRef = useRef(null); // original video for compare sync
@@ -150,33 +151,101 @@ export default function VideoPlayer({ project }) {
         </a>
       </div>
 
-      <div className={`video-viewports ${compareMode ? 'compare-split' : 'single'}`}>
+      <div className="video-viewports" style={{ position: 'relative', overflow: 'hidden', width: '100%', aspectRatio: '16/9', display: 'flex' }}>
         {compareMode ? (
-          <>
-            <div className="viewport-panel">
-              <span className="panel-label">ORIGINAL SOURCE</span>
-              <video
-                ref={secondaryVideoRef}
-                src={inputVideoUrl}
-                preload="auto"
-                playsInline
-                className="custom-video-element"
-              />
+          <div className="viewport-panel full-width" style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {/* Background Layer: Original Video */}
+            <video
+              ref={secondaryVideoRef}
+              src={inputVideoUrl}
+              preload="auto"
+              playsInline
+              className="custom-video-element"
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+            <span className="panel-label" style={{ left: '10px', top: '10px', zIndex: 12 }}>ORIGINAL SOURCE</span>
+
+            {/* Foreground Layer: AI Edited Video (Clipped) */}
+            <video
+              ref={mainVideoRef}
+              src={outputVideoUrl}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleTimeUpdate}
+              onEnded={() => setIsPlaying(false)}
+              preload="auto"
+              playsInline
+              className="custom-video-element"
+              style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'contain',
+                clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)`,
+                zIndex: 9
+              }}
+            />
+            <span className="panel-label active" style={{ right: '10px', left: 'auto', top: '10px', borderLeft: 'none', borderRight: '2px solid var(--primary)', zIndex: 12 }}>AI PROCESSED</span>
+
+            {/* Divider Handle Line */}
+            <div 
+              className="slider-bar-handle" 
+              style={{ 
+                position: 'absolute', 
+                top: 0, 
+                bottom: 0, 
+                left: `${sliderPos}%`, 
+                width: '2px', 
+                backgroundColor: '#fff', 
+                boxShadow: '0 0 10px rgba(0,0,0,0.5)', 
+                zIndex: 10, 
+                pointerEvents: 'none' 
+              }}
+            >
+              <div 
+                style={{ 
+                  position: 'absolute', 
+                  top: '50%', 
+                  left: '50%', 
+                  transform: 'translate(-50%, -50%)', 
+                  width: '32px', 
+                  height: '32px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#fff', 
+                  border: '2px solid var(--primary)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justify: 'center', 
+                  boxShadow: '0 0 8px rgba(0,0,0,0.4)', 
+                  pointerEvents: 'none' 
+                }}
+              >
+                <span style={{ color: 'var(--primary)', fontSize: '14px', fontWeight: 'bold' }}>↔</span>
+              </div>
             </div>
-            <div className="viewport-panel">
-              <span className="panel-label active">AI PROCESSED</span>
-              <video
-                ref={mainVideoRef}
-                src={outputVideoUrl}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleTimeUpdate}
-                onEnded={() => setIsPlaying(false)}
-                preload="auto"
-                playsInline
-                className="custom-video-element"
-              />
-            </div>
-          </>
+
+            {/* Transparent Slider Controller Range Input */}
+            <input 
+              type="range" 
+              min="0" 
+              max="100" 
+              value={sliderPos} 
+              onChange={(e) => setSliderPos(parseFloat(e.target.value))} 
+              style={{ 
+                position: 'absolute', 
+                top: 0, 
+                left: 0, 
+                width: '100%', 
+                height: '100%', 
+                opacity: 0, 
+                zIndex: 15, 
+                cursor: 'ew-resize', 
+                margin: 0, 
+                padding: 0 
+              }} 
+            />
+          </div>
         ) : (
           <div className="viewport-panel full-width">
             <span className="panel-label active">
