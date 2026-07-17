@@ -22,6 +22,13 @@ export default function ProjectDetails({ project, onUpdateProject }) {
   const [outfits, setOutfits] = useState([]);
   const [selectedOutfitId, setSelectedOutfitId] = useState('');
   const [showOutfitDrawer, setShowOutfitDrawer] = useState(false);
+  const [compileFps, setCompileFps] = useState(project.fps || 16);
+
+  useEffect(() => {
+    if (project.fps) {
+      setCompileFps(project.fps);
+    }
+  }, [project.id, project.fps]);
 
   useEffect(() => {
     fetch('/api/outfits')
@@ -198,7 +205,7 @@ export default function ProjectDetails({ project, onUpdateProject }) {
     fetch(`/api/projects/${project.id}/compile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ includeAudio })
+      body: JSON.stringify({ includeAudio, fps: compileFps })
     })
       .then(res => {
         if (!res.ok) throw new Error('Compilation request failed');
@@ -536,24 +543,63 @@ export default function ProjectDetails({ project, onUpdateProject }) {
         return (
           <div className="status-flow-card success animated-slide-down">
             <div className="card-icon"><Layers size={28} /></div>
-            <div className="card-info flex justify-between align-center flex-wrap gap-15 width-100">
-              <div>
-                <h4>AI Frame Treatment Completed</h4>
-                <p>All <strong>{editedCount} frames</strong> have been edited by ComfyUI. Review the frames list below, delete any bad frame errors, and compile the final output.</p>
+            <div className="card-info width-100 flex-column gap-15">
+              <div className="flex justify-between align-center">
+                <div>
+                  <h4>AI Frame Treatment Completed</h4>
+                  <p className="text-sm text-muted m-0">All <strong>{editedCount} frames</strong> have been successfully processed. Set your playback rate and compile the final video.</p>
+                </div>
               </div>
-              <div className="flex align-center gap-15">
-                <label className="loop-check flex align-center gap-5 select-none cursor-pointer">
+              
+              <div className="flex gap-20 align-end flex-wrap border-glass-top pt-15">
+                <div className="form-group flex-shrink-0" style={{ width: '180px' }}>
+                  <label className="text-muted font-semibold text-xs mb-5 display-block">Compilation Framerate (Frame/sec):</label>
                   <input
-                    type="checkbox"
-                    checked={includeAudio}
-                    onChange={(e) => setIncludeAudio(e.target.checked)}
+                    type="number"
+                    min="1"
+                    max="120"
+                    step="0.1"
+                    value={compileFps}
+                    onChange={(e) => setCompileFps(parseFloat(e.target.value) || 16)}
+                    className="glass-input width-100"
                   />
-                  <span>Include Original Audio</span>
-                </label>
-                <button onClick={handleCompile} className="btn btn-success">
-                  <Film size={16} />
-                  Compile Final Video
-                </button>
+                </div>
+
+                <div className="flex-grow flex-column gap-5 text-xs text-muted" style={{ minWidth: '250px' }}>
+                  <div>• 1 Frame duration: <strong>{(1 / compileFps).toFixed(4)}s</strong></div>
+                  <div>• Compiled video length: <strong>{(editedCount / compileFps).toFixed(2)}s</strong> ({editedCount} frames)</div>
+                  {project.duration && (
+                    <div className="flex align-center gap-5 flex-wrap">
+                      <span>• Original video duration: <strong>{project.duration.toFixed(2)}s</strong> ({project.originalFps || 24} original FPS)</span>
+                      <button 
+                        type="button"
+                        className="btn-text text-primary font-semibold"
+                        style={{ padding: 0, textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer' }}
+                        onClick={() => {
+                          const fitFps = Math.round((editedCount / project.duration) * 100) / 100;
+                          setCompileFps(fitFps);
+                        }}
+                      >
+                        [Fit frames to match duration ({Math.round((editedCount / project.duration) * 100) / 100} FPS)]
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex align-center gap-15 flex-shrink-0">
+                  <label className="loop-check flex align-center gap-5 select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeAudio}
+                      onChange={(e) => setIncludeAudio(e.target.checked)}
+                    />
+                    <span>Include Original Audio</span>
+                  </label>
+                  <button onClick={handleCompile} className="btn btn-success">
+                    <Film size={16} />
+                    Compile Final Video
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -577,28 +623,67 @@ export default function ProjectDetails({ project, onUpdateProject }) {
         return (
           <div className="status-flow-card completed animated-slide-down">
             <div className="card-icon"><CheckCircle size={28} /></div>
-            <div className="card-info flex justify-between align-center flex-wrap gap-15 width-100">
-              <div>
-                <h4>Final Video Generated Successfully!</h4>
-                <p>Video compiled cleanly with original audio sync. The file is ready in the player view.</p>
+            <div className="card-info width-100 flex-column gap-15">
+              <div className="flex justify-between align-center">
+                <div>
+                  <h4>Final Video Generated Successfully!</h4>
+                  <p className="text-sm text-muted m-0">Video compiled cleanly with original audio sync. The file is ready in the player view.</p>
+                </div>
               </div>
-              <div className="flex align-center gap-15">
-                <label className="loop-check flex align-center gap-5 select-none cursor-pointer">
+              
+              <div className="flex gap-20 align-end flex-wrap border-glass-top pt-15">
+                <div className="form-group flex-shrink-0" style={{ width: '180px' }}>
+                  <label className="text-muted font-semibold text-xs mb-5 display-block">Re-Compile Framerate (Frame/sec):</label>
                   <input
-                    type="checkbox"
-                    checked={includeAudio}
-                    onChange={(e) => setIncludeAudio(e.target.checked)}
+                    type="number"
+                    min="1"
+                    max="120"
+                    step="0.1"
+                    value={compileFps}
+                    onChange={(e) => setCompileFps(parseFloat(e.target.value) || 16)}
+                    className="glass-input width-100"
                   />
-                  <span>Include Original Audio</span>
-                </label>
-                <div className="flex gap-10">
-                  <button onClick={() => setActiveTab('preview')} className="btn btn-primary">
-                    <Play size={16} />
-                    Open Video Player
-                  </button>
-                  <button onClick={handleCompile} className="btn btn-secondary">
-                    Re-Compile Video
-                  </button>
+                </div>
+
+                <div className="flex-grow flex-column gap-5 text-xs text-muted" style={{ minWidth: '250px' }}>
+                  <div>• 1 Frame duration: <strong>{(1 / compileFps).toFixed(4)}s</strong></div>
+                  <div>• Compiled video length: <strong>{(editedCount / compileFps).toFixed(2)}s</strong> ({editedCount} frames)</div>
+                  {project.duration && (
+                    <div className="flex align-center gap-5 flex-wrap">
+                      <span>• Original video duration: <strong>{project.duration.toFixed(2)}s</strong> ({project.originalFps || 24} original FPS)</span>
+                      <button 
+                        type="button"
+                        className="btn-text text-primary font-semibold"
+                        style={{ padding: 0, textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer' }}
+                        onClick={() => {
+                          const fitFps = Math.round((editedCount / project.duration) * 100) / 100;
+                          setCompileFps(fitFps);
+                        }}
+                      >
+                        [Fit frames to match duration ({Math.round((editedCount / project.duration) * 100) / 100} FPS)]
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex align-center gap-15 flex-shrink-0">
+                  <label className="loop-check flex align-center gap-5 select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeAudio}
+                      onChange={(e) => setIncludeAudio(e.target.checked)}
+                    />
+                    <span>Include Original Audio</span>
+                  </label>
+                  <div className="flex gap-10">
+                    <button onClick={() => setActiveTab('preview')} className="btn btn-primary">
+                      <Play size={16} />
+                      Open Video Player
+                    </button>
+                    <button onClick={handleCompile} className="btn btn-secondary">
+                      Re-Compile Video
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

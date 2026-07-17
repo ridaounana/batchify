@@ -264,7 +264,7 @@ app.post('/api/projects', (req, res) => {
 });
 
 // POST Upload video to project
-app.post('/api/projects/:id/upload', upload.single('video'), (req, res) => {
+app.post('/api/projects/:id/upload', upload.single('video'), async (req, res) => {
   try {
     const { id } = req.params;
     const projectPath = validateProjectPath(id);
@@ -277,6 +277,11 @@ app.post('/api/projects/:id/upload', upload.single('video'), (req, res) => {
     const info = readProjectInfo(id);
     info.status = 'uploaded';
     info.originalVideoPath = path.join(projectPath, 'input_video.mp4');
+
+    // Parse duration and original FPS from uploaded video
+    const meta = await getVideoMetadata(info.originalVideoPath);
+    info.duration = meta.duration;
+    info.originalFps = meta.originalFps;
 
     fs.writeFileSync(infoPath, JSON.stringify(info, null, 2), 'utf8');
     res.json(info);
@@ -323,6 +328,13 @@ app.post('/api/projects/:id/extract', async (req, res) => {
     const extDir = path.join(projectPath, 'extracted_frames');
     fs.rmSync(extDir, { recursive: true, force: true });
     fs.mkdirSync(extDir, { recursive: true });
+
+    // Parse duration and original FPS from input video if missing
+    if (info.duration === undefined || info.originalFps === undefined) {
+      const meta = await getVideoMetadata(inputVideo);
+      info.duration = meta.duration;
+      info.originalFps = meta.originalFps;
+    }
 
     info.status = 'extracting';
     info.fps = fps;
@@ -853,11 +865,52 @@ function checkHasAudio(videoPath) {
   });
 }
 
+// Helper: Query original video duration and average framerate
+function getVideoMetadata(videoPath) {
+  return new Promise((resolve) => {
+    const ffprobe = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=r_frame_rate,duration',
+      '-of', 'csv=p=0',
+      videoPath
+    ]);
+    let output = '';
+    ffprobe.stdout.on('data', (data) => output += data.toString());
+    ffprobe.on('close', () => {
+      const parts = output.trim().split(',');
+      let originalFps = 24;
+      let duration = null;
+
+      if (parts[0]) {
+        const fpsParts = parts[0].split('/');
+        if (fpsParts.length === 2) {
+          const num = parseFloat(fpsParts[0]);
+          const den = parseFloat(fpsParts[1]);
+          if (den > 0) originalFps = Math.round((num / den) * 100) / 100;
+        } else {
+          const parsed = parseFloat(parts[0]);
+          if (!isNaN(parsed)) originalFps = parsed;
+        }
+      }
+      if (parts[1]) {
+        const parsedDur = parseFloat(parts[1]);
+        if (!isNaN(parsedDur)) duration = parsedDur;
+      }
+      resolve({ originalFps, duration });
+    });
+    ffprobe.on('error', () => {
+      resolve({ originalFps: 24, duration: null });
+    });
+  });
+}
+
 // POST Compile edited frames back to video
 app.post('/api/projects/:id/compile', async (req, res) => {
   try {
     const { id } = req.params;
     const includeAudio = req.body.includeAudio !== undefined ? !!req.body.includeAudio : true;
+    const compileFps = parseFloat(req.body.fps) || 16;
     const projectPath = validateProjectPath(id);
     const infoPath = path.join(projectPath, 'info.json');
 
@@ -927,7 +980,7 @@ app.post('/api/projects/:id/compile', async (req, res) => {
 
     // Compile frames to video (no audio first) secure spawn
     const ffmpegArgs = [
-      '-framerate', String(info.fps),
+      '-framerate', String(compileFps),
       '-i', path.join(tempCompileDir, 'frame_%04d.png'),
       '-c:v', 'libx264',
       '-pix_fmt', 'yuv420p',
@@ -955,6 +1008,7 @@ app.post('/api/projects/:id/compile', async (req, res) => {
             '-c:a', 'aac',
             '-map', '0:v:0',
             '-map', '1:a:0',
+            '-shortest',
             '-y',
             finalOutputVideo
           ];
