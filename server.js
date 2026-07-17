@@ -1004,6 +1004,7 @@ app.post('/api/projects/:id/compile', async (req, res) => {
           const duration = info.extractedCount / compileFps;
           const mergeArgs = [
             '-i', tempOutputVideo,
+            '-stream_loop', '-1',
             '-i', originalVideo,
             '-c:v', 'copy',
             '-c:a', 'aac',
